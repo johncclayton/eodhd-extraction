@@ -10,23 +10,17 @@ Follow these steps in order.
    - Go to the EODHD website and create an account.
    - In your account dashboard, copy your API key.
 
-2. Open the folder where this script is, e.g.
-   - Folder path:
-     `C:\path\to\eodhd`
-
-3. Create your `.env` file in the same folder
-   - Easiest option: copy `.env.example` and rename the copy to `.env`.
-   - Or create a new text file named exactly `.env`.
-
-4. Put your API key into `.env`
+2. Copy the `.env.example` to `.env` and paste in your EODHD API key   
    - Open `.env` in a text editor.
-   - Add exactly one line in this format:
+   - Make sure you have exactly one line in this format:
 
 ```text
 EODHD_API_TOKEN=your-real-api-key-goes-here
 ```
 
-5. Test that your key works (safe test, no symbol export)
+3. Make sure that the file is called `.env` - there is already a .gitignore file that EXCLUDES this from source control.
+
+4. Test that your key works (safe test, no symbol export)
    - Open PowerShell in this folder and run:
 
 ```powershell
