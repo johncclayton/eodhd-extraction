@@ -1,0 +1,21 @@
+{
+  "apiBaseUrl": "https://eodhd.com/api",
+  "requestTimeoutSeconds": 60,
+  "currencies": [],
+  "countries": [],
+  "exchanges": [
+    {
+      "code": [
+        "SW",
+        "XETRA",
+        "PA",
+        "F"
+      ]
+    }
+  ],
+  "symbolFormat": "{Code}.{ExchangeCode}",
+  "outputDirectory": "./output",
+  "logsDirectory": "./logs",
+  "runHealthFileName": "last-run.json",
+  "runHealthSummaryFileName": "run-health-summary.csv"
+}
