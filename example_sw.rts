@@ -1,0 +1,24 @@
+Notes:
+	Just an example of how we can use the text files to import EODHD data. 
+	
+	This focuses on bringing in all the Swiss symbols and playing with just the CHDVD.SW symbol
+	
+	This demo presently ignores the fact that we'll need a syminfo mapping file, aliases and in fact
+	the entire order submission process.
+	
+
+Import:
+	DataSource:	EODHD
+	IncludeList:	?scriptpath?\output\SW-symbols-rt.txt
+	SaveAs:	sw-symbols.rtd
+	IncludeList:	CHDVD.SW {"assets"}
+	
+	StartDate:	2002/1/1
+	EndDate:	Latest
+	
+Settings:	
+	AccountSize:	100000
+	DataFile:	sw-symbols.rtd
+	
+Charts:	
+	Price:	C

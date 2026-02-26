@@ -31,6 +31,11 @@ pwsh .\Invoke-EodhdSymbolExport.ps1 -ListExchanges
 
 Congratulations - the system works - now onto the configuration.
 
+## Real Test Configuration
+
+Do NOT forget to put your EODHD API key into the real test ini file.  Real Test has to be closed 
+when you modify the realtest.ini file. 
+
 ## Configuration
 
 Edit `eodhd-config.json`:
