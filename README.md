@@ -29,31 +29,7 @@ pwsh .\Invoke-EodhdSymbolExport.ps1 -ListExchanges
 
    - Expected result: one exchange per line (Code, Name, Country, Currency).
 
-   - `-AllExchanges` is available on `Invoke-EodhdSymbolExport.ps1`, but it is usually **not** what you want for day-to-day runs.
-   - It can take a long time because it processes every available exchange.
-   - The main downside is runtime, not API cost pressure. Running these scripts is generally not expensive from an API call/quota perspective.
-
-6. Run the export
-   - In the same PowerShell window, run:
-
-```powershell
-pwsh .\Run-EodhdSnapshot.ps1
-```
-
-7. Check the output files
-   - Symbol files are written to `output\`.
-   - Logs are written to `logs\`.
-   - Run health files are:
-     - `output\last-run.json`
-     - `output\run-health-summary.csv`
-
-## Files
-
-- `eodhd-config.json` - exchange selection and runtime settings.
-- `Invoke-EodhdSymbolExport.ps1` - main exporter.
-- `Run-EodhdSnapshot.ps1` - scheduler-friendly wrapper script.
-- `output/` - generated snapshot outputs (created at runtime).
-- `logs/` - run logs and transcripts (created at runtime).
+Congratulations - the system works - now onto the configuration.
 
 ## Configuration
 
@@ -188,3 +164,11 @@ powershell.exe -ExecutionPolicy Bypass -File "C:\path\to\eodhd\Run-EodhdSnapshot
 ```
 
 If you keep the token in an environment variable, run the task under a user account that has that variable defined.
+
+## Files
+
+- `eodhd-config.json` - exchange selection and runtime settings.
+- `Invoke-EodhdSymbolExport.ps1` - main exporter.
+- `Run-EodhdSnapshot.ps1` - scheduler-friendly wrapper script.
+- `output/` - generated snapshot outputs (created at runtime).
+- `logs/` - run logs and transcripts (created at runtime).
