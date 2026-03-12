@@ -25,40 +25,66 @@ function Get-EodhdAvailableExchanges {
 
     $listUri = "{0}/exchanges-list/?api_token={1}&fmt=json" -f $ApiBaseUrl.TrimEnd('/'), $ApiToken
     $exchangeList = @(Invoke-RestMethod -Method Get -Uri $listUri -TimeoutSec $TimeoutSeconds)
+    if (@($exchangeList).Count -eq 1 -and $exchangeList[0] -is [System.Array]) {
+        $exchangeList = @($exchangeList[0])
+    }
 
-    if ($exchangeList.Count -eq 0) {
+    if (@($exchangeList).Count -eq 0) {
         return @()
     }
 
     $normalizedExchanges = @()
     foreach ($item in $exchangeList) {
-        if ($item.Code -is [System.Array]) {
-            $codes = @($item.Code)
-            $names = @($item.Name)
-            $countries = @($item.Country)
-            $currencies = @($item.Currency)
-            $maxCount = ($codes.Count, $names.Count, $countries.Count, $currencies.Count | Measure-Object -Maximum).Maximum
+        $propertyNames = @(
+            $item.PSObject.Properties |
+            ForEach-Object { $_.Name }
+        )
 
-            for ($i = 0; $i -lt $maxCount; $i++) {
-                $normalizedExchanges += [pscustomobject]@{
-                    Code     = if ($i -lt $codes.Count) { [string]$codes[$i] } else { "" }
-                    Name     = if ($i -lt $names.Count) { [string]$names[$i] } else { "" }
-                    Country  = if ($i -lt $countries.Count) { [string]$countries[$i] } else { "" }
-                    Currency = if ($i -lt $currencies.Count) { [string]$currencies[$i] } else { "" }
-                }
+        if (@($propertyNames).Count -eq 0) {
+            continue
+        }
+
+        $propertyDefinitions = @()
+        $maxCount = 1
+
+        foreach ($propertyName in $propertyNames) {
+            $propertyValue = $item.$propertyName
+            $isArrayValue = $propertyValue -is [System.Array]
+            $values = if ($isArrayValue) { @($propertyValue) } else { @($propertyValue) }
+
+            if (@($values).Count -gt $maxCount) {
+                $maxCount = @($values).Count
+            }
+
+            $propertyDefinitions += [pscustomobject]@{
+                Name = $propertyName
+                Values = $values
+                RepeatSingleValue = -not $isArrayValue
             }
         }
-        else {
-            $normalizedExchanges += [pscustomobject]@{
-                Code     = [string]$item.Code
-                Name     = [string]$item.Name
-                Country  = [string]$item.Country
-                Currency = [string]$item.Currency
+
+        for ($i = 0; $i -lt $maxCount; $i++) {
+            $normalizedExchange = [ordered]@{}
+
+            foreach ($propertyDefinition in $propertyDefinitions) {
+                $values = @($propertyDefinition.Values)
+                $value = $null
+
+                if ($i -lt @($values).Count) {
+                    $value = $values[$i]
+                }
+                elseif ($propertyDefinition.RepeatSingleValue -and @($values).Count -eq 1) {
+                    $value = $values[0]
+                }
+
+                $normalizedExchange[$propertyDefinition.Name] = if ($null -ne $value) { [string]$value } else { "" }
             }
+
+            $normalizedExchanges += [pscustomobject]$normalizedExchange
         }
     }
 
-    return @($normalizedExchanges | Sort-Object -Property Code)
+    return ($normalizedExchanges | Sort-Object -Property Code)
 }
 
 function Write-EodhdAvailableExchanges {
@@ -78,9 +104,45 @@ function Write-EodhdAvailableExchanges {
         return
     }
 
-    # One exchange per line for predictable CLI output.
+    $preferredPropertyOrder = @(
+        "Code",
+        "Name",
+        "Country",
+        "Currency",
+        "CountryISO2",
+        "CountryISO3",
+        "OperatingMIC"
+    )
+
+    $availablePropertyNames = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($exchange in $exchanges) {
+        foreach ($property in $exchange.PSObject.Properties) {
+            [void]$availablePropertyNames.Add($property.Name)
+        }
+    }
+
+    $propertyNames = [System.Collections.Generic.List[string]]::new()
+    foreach ($propertyName in $preferredPropertyOrder) {
+        if ($availablePropertyNames.Contains($propertyName)) {
+            $propertyNames.Add($propertyName)
+        }
+    }
+
+    foreach ($propertyName in $availablePropertyNames) {
+        if (-not $propertyNames.Contains($propertyName)) {
+            $propertyNames.Add($propertyName)
+        }
+    }
+
+    # Header plus one exchange per line for predictable CLI output.
+    Write-Host ($propertyNames -join " | ")
+
     $exchanges | ForEach-Object {
-        Write-Host ("{0} | {1} | {2} | {3}" -f $_.Code, $_.Name, $_.Country, $_.Currency)
+        $values = foreach ($propertyName in $propertyNames) {
+            [string]$_.($propertyName)
+        }
+
+        Write-Host ($values -join " | ")
     }
 }
 
@@ -387,6 +449,7 @@ function Invoke-EodhdSymbolExport {
 
                         [pscustomobject]@{
                             Symbol = $symbolValue
+                            Exchange = $exchangeCode
                             Name = [string]$_.Name
                             Currency = [string]$_.Currency
                         }

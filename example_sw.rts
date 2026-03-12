@@ -3,19 +3,17 @@ Notes:
 	
 	This focuses on bringing in all the Swiss symbols and experimenting with just the CHDVD.SW symbol
 	
-	This demo presently ignores the fact that we'll need a syminfo mapping file, aliases and in fact
-	the entire order submission process.
-
 Import:
 	DataSource:	EODHD
 	
 	// this will include ALL the symbols in the SIX exchange (outstanding issue is aliasing these for use in OC/IBKR)
-	//IncludeList:	?scriptpath?\output\SW-symbols-rt.txt
+	IncludeList:	?scriptpath?\output\SW-symbols-rt.txt
+	SymInfoFile:	?scriptpath?\output\SW-syminfo-rt.csv
 
-	// or pick individual stocks/etc - alias them so that IBKR can use them.
+	// or pick individual stocks/etc - alias them so that IBKR can use them.  Remember, NO SPACES around the > symbol.
 	IncludeList:	SPI20.SW>SPI20 {"index"}
 	IncludeList:	CHDVD.SW>CHDVD, AGGS.SW>AGGS {"assets"}
-		
+	
 	StartDate:	2002/1/1
 	EndDate:	Latest
 	
@@ -26,10 +24,14 @@ Settings:
 	AccountSize:	100000
 	DataFile:	sw-symbols.rtd
 	
+	// exchange map so that all SW symbols get mapped to EBS so orders are placed correctly via Order Clerk.
+	ExchangeMap:	?scriptpath?\CustomExchangeMap.csv
+
 Charts:	
 	Price:	C
 	
 Scan:
-	Filter:	 ?Symbol = "CHDVD.SW" 
+	Filter:	?Symbol = "CHDVD" // not CHDVD.sw, the alias name is the one you want to use here
+	Exchange:	?Exchange	// if the exchange mappings have been set up, this will show SW for Swiss Exchange
 	Name:	?Name
 	
