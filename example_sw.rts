@@ -39,8 +39,8 @@ Data:
 // "borrowed" from the dalio_allweather.rts RT example script
 Strategy: allweather_sw
 	Side:	Long
-	EntrySetup:	EndOfMonth and InList("assets")
-	ExitRule:	EndOfMonth
+	EntrySetup:	InList("assets")
+	ExitRule:	1
 	Quantity:	Item("alloc{?}", ?symbol)
 	QtyType:	Percent
 	
