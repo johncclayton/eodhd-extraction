@@ -1,24 +1,55 @@
 Notes:
 	Just an example of how we can use the text files to import EODHD data. 
 	
-	This focuses on bringing in all the Swiss symbols and playing with just the CHDVD.SW symbol
+	This focuses on bringing in all the Swiss symbols and experimenting with just the CHDVD.SW symbol
+	The aliases are important, as IBKR uses CHDVD not CHDVD.SW
+	The syminfo file provides currency, symbol and exchange information (this is created by the eodhd-extraction scripts)
 	
-	This demo presently ignores the fact that we'll need a syminfo mapping file, aliases and in fact
-	the entire order submission process.
-	
-
 Import:
 	DataSource:	EODHD
+	
+	// this will include ALL the symbols in the SIX exchange (outstanding issue is aliasing these for use in OC/IBKR)
 	IncludeList:	?scriptpath?\output\SW-symbols-rt.txt
-	SaveAs:	sw-symbols.rtd
-	IncludeList:	CHDVD.SW {"assets"}
+	SymInfoFile:	?scriptpath?\output\SW-syminfo-rt.csv
+
+	// or pick individual stocks/etc - alias them so that IBKR can use them.  Remember, NO SPACES around the > symbol.
+	IncludeList:	SPI20.SW>SPI20 {"index"}
+	IncludeList:	CHDVD.SW>CHDVD, AGGS.SW>AGGS {"assets"}
 	
 	StartDate:	2002/1/1
 	EndDate:	Latest
+	
+	SaveAs:	sw-symbols.rtd
+	LogFile:	?scriptpath?\?scriptname?_import.txt
 	
 Settings:	
 	AccountSize:	100000
 	DataFile:	sw-symbols.rtd
 	
+OrderSettings:
+	StartDate:	2022/8/1
+	EndDate:	Latest
+	OrderClerkFolder:	?scriptpath?\OrderClerkPaper
+	OrdersMode:	OrderClerk
+
+Data:
+	AllocCHDVD:	50
+	AllocAGGS:	50
+
+// "borrowed" from the dalio_allweather.rts RT example script
+Strategy: allweather_sw
+	Side:	Long
+	EntrySetup:	InList("assets")
+	ExitRule:	1
+	Quantity:	Item("alloc{?}", ?symbol)
+	QtyType:	Percent
+	
 Charts:	
 	Price:	C
+	
+Scan:
+	Filter:	?Symbol = "CHDVD" // not CHDVD.sw, the alias name is the one you want to use here
+	Exchange:	?Exchange	// if the symbol info file is properly setup, you'll get the first Exchange found from the OrderClerkExchanges.csv that maps to the EODHD Country Code.
+	Name:	?Name
+	
+// end of file. 
