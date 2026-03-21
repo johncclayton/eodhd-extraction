@@ -285,16 +285,24 @@ function Invoke-EodhdSymbolValidation {
         }
 
         Write-Host ""
-        Write-Host ("BuildListingIndexes: {0} payload file(s); Utf8JsonReader streaming (one file at a time)." -f $exchangePayloadFiles.Count)
+
+        $payloadFileTotal = $exchangePayloadFiles.Count
+        $spinFrames = @('|', '/', '-', '\')
+        $payloadOrdinal = 0
+        $indexedFileCount = 0
+        $indexedRowTotal = 0
 
         $streamer = [EodhdExperimental.SymbolIndexStreamer]::new()
         foreach ($payloadFile in $exchangePayloadFiles) {
+            $payloadOrdinal++
             $exchangeCode = [System.IO.Path]::GetFileNameWithoutExtension($payloadFile.Name) -replace '-symbols-full$', ''
             if ([string]::IsNullOrWhiteSpace($exchangeCode)) {
                 continue
             }
 
-            Write-Host ("  {0}  ex={1}  (streaming parse + index...)" -f $payloadFile.Name, $exchangeCode)
+            $spin = $spinFrames[($payloadOrdinal - 1) % $spinFrames.Count]
+            [Console]::Write(("`r  {0}  Indexing listings  {1}/{2}  " -f $spin, $payloadOrdinal, $payloadFileTotal))
+
             $fileSw = $null
             if ($ProfileTimings) {
                 $fileSw = [System.Diagnostics.Stopwatch]::StartNew()
@@ -304,7 +312,7 @@ function Invoke-EodhdSymbolValidation {
                 $rowCount = $streamer.AddPayloadFile($payloadFile.FullName, $exchangeCode)
             }
             catch {
-                Write-Host ("  {0} - skipped (error)" -f $payloadFile.Name)
+                [Console]::WriteLine()
                 Write-Warning "Skipping payload file (streaming parse failed): $($payloadFile.FullName) - $($_.Exception.Message)"
                 if ($ProfileTimings -and $null -ne $fileSw) {
                     $fileSw.Stop()
@@ -322,8 +330,12 @@ function Invoke-EodhdSymbolValidation {
                 })
             }
 
-            Write-Host ("  {0}  ex={1}  rows={2} (indexed)" -f $payloadFile.Name, $exchangeCode, $rowCount)
+            $indexedFileCount++
+            $indexedRowTotal += $rowCount
         }
+
+        [Console]::Write("`r{0}`r" -f (' ' * 80))
+        Write-Host ("Indexed {0} payload file(s), {1:N0} rows." -f $indexedFileCount, $indexedRowTotal)
 
         $symbolToListingsExact = $streamer.Exact
         $symbolToListingsNormalized = $streamer.Normalized
