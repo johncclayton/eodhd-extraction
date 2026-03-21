@@ -6,6 +6,8 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
+. (Join-Path $PSScriptRoot "Eodhd-Config.ps1")
+
 function Resolve-ConfigRelativePath {
     param(
         [Parameter(Mandatory = $true)]
@@ -29,8 +31,8 @@ function Get-LogsDirectory {
     }
 
     try {
-        $cfg = Get-Content -LiteralPath $EffectiveConfigPath -Raw | ConvertFrom-Json
         $cfgDir = Split-Path -Path $EffectiveConfigPath -Parent
+        $cfg = Get-EodhdEffectiveConfig -ConfigPath $EffectiveConfigPath
         $logsDir = Resolve-ConfigRelativePath -Path ([string]$cfg.logsDirectory) -ConfigDirectory $cfgDir
         if ([string]::IsNullOrWhiteSpace($logsDir)) {
             return (Join-Path $PSScriptRoot "logs")

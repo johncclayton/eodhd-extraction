@@ -12,6 +12,8 @@ if ([string]::IsNullOrWhiteSpace($ConfigPath)) {
     $ConfigPath = Join-Path $scriptDirectory "eodhd-config.json"
 }
 
+$script:EodhdRepoRoot = Split-Path -Path $MyInvocation.MyCommand.Path -Parent
+
 function Get-EodhdAvailableExchanges {
     [CmdletBinding()]
     param(
@@ -436,13 +438,57 @@ Add or fix a row in fallback\OrderClerkExchanges.csv (column 3 country ISO2 must
         return $ExchangeCode
     }
 
+    function Format-SymInfoCsvField {
+        param(
+            [Parameter(Mandatory = $false)]
+            [AllowEmptyString()]
+            [string]$Value
+        )
+
+        if ($null -eq $Value) {
+            return ""
+        }
+
+        $s = $Value.Trim()
+        if ($s.Length -eq 0) {
+            return ""
+        }
+
+        # UTF-8 en dash (E2 80 93) misread as Windows-1252, then stored as UTF-8 → literal U+00E2 U+20AC U+201C.
+        $mojibakeEnDash = ([string][char]0x00E2) + ([string][char]0x20AC) + ([string][char]0x201C)
+        $s = $s.Replace($mojibakeEnDash, "-")
+
+        # Control characters (incl. NUL, CR, LF, TAB) → space; format chars (zero-width, BOM, etc.) removed.
+        $s = [regex]::Replace($s, '\p{Cc}+', ' ')
+        $s = [regex]::Replace($s, '\p{Cf}+', '')
+
+        # Common “smart” punctuation → ASCII so legacy tools and single-byte parsers behave.
+        $s = $s.Replace([char]0x2018, "'").Replace([char]0x2019, "'").Replace([char]0x201A, "'").Replace([char]0x201B, "'")
+        $s = $s.Replace([char]0x201C, ' ').Replace([char]0x201D, ' ').Replace([char]0x201E, ' ').Replace([char]0x201F, ' ')
+        $s = $s.Replace([char]0x2032, "'").Replace([char]0x2033, "'")
+        $s = $s.Replace([char]0x2013, '-').Replace([char]0x2014, '-').Replace([char]0x2212, '-')
+        # Use string overload; Replace(char,'...') binds to Replace(char,char) in PowerShell and throws.
+        $s = $s.Replace([string][char]0x2026, '...')
+        $s = $s.Replace([char]0x00AB, "'").Replace([char]0x00BB, "'")
+
+        # Characters that confuse naive CSV / line parsers even when Export-Csv quotes fields.
+        $s = $s.Replace('"', '')
+        $s = $s.Replace(',', ' ')
+        $s = $s.Replace(';', ' ')
+        $s = $s.Replace([char]0x2028, ' ').Replace([char]0x2029, ' ')
+
+        $s = $s -replace '\s+', ' '
+        return $s.Trim()
+    }
+
     try {
         if (-not (Test-Path -LiteralPath $ConfigPath)) {
             throw "Config file not found: $ConfigPath"
         }
 
         $configDirectory = Split-Path -Path $ConfigPath -Parent
-        $config = Get-Content -LiteralPath $ConfigPath -Raw | ConvertFrom-Json
+        . (Join-Path $script:EodhdRepoRoot "Eodhd-Config.ps1")
+        $config = Get-EodhdEffectiveConfig -ConfigPath $ConfigPath
 
         $apiBaseUrl = [string]$config.apiBaseUrl
         if ([string]::IsNullOrWhiteSpace($apiBaseUrl)) {
@@ -673,10 +719,10 @@ Add or fix a row in fallback\OrderClerkExchanges.csv (column 3 country ISO2 must
                         }
 
                         [pscustomobject]@{
-                            Symbol = $symbolValue
-                            Exchange = $mappedExchangeCode
-                            Name = [string]$_.Name
-                            Currency = [string]$_.Currency
+                            Symbol = (Format-SymInfoCsvField -Value $symbolValue)
+                            Exchange = (Format-SymInfoCsvField -Value $mappedExchangeCode)
+                            Name = (Format-SymInfoCsvField -Value ([string]$_.Name))
+                            Currency = (Format-SymInfoCsvField -Value ([string]$_.Currency))
                         }
                     } |
                     Where-Object { -not [string]::IsNullOrWhiteSpace($_.Symbol) } |

@@ -17,6 +17,9 @@ if ([string]::IsNullOrWhiteSpace($ConfigPath)) {
     $ConfigPath = Join-Path $scriptDirectory "eodhd-config.json"
 }
 
+$script:EodhdRepoRoot = Split-Path -Path $MyInvocation.MyCommand.Path -Parent
+. (Join-Path $script:EodhdRepoRoot "Eodhd-Config.ps1")
+
 if ($PSVersionTable.PSVersion.Major -lt 7) {
     throw 'Invoke-EodhdSymbolValidation requires PowerShell 7+ (listing indexes use System.Text.Json Utf8JsonReader).'
 }
@@ -262,7 +265,7 @@ function Invoke-EodhdSymbolValidation {
         }
 
         $configDirectory = Split-Path -Path $ConfigPath -Parent
-        $config = Get-Content -LiteralPath $ConfigPath -Raw | ConvertFrom-Json
+        $config = Get-EodhdEffectiveConfig -ConfigPath $ConfigPath
         $outputDirectorySetting = [string]$config.outputDirectory
         if ([string]::IsNullOrWhiteSpace($outputDirectorySetting)) {
             $outputDirectorySetting = "./output"
