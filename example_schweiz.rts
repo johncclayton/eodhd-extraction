@@ -1,0 +1,47 @@
+		
+Import:
+	DataSource:	EODHD
+	SymInfoFile:	?scriptpath?\..\..\Data\output\SW-syminfo-rt.csv
+	
+	SaveAs:	wordIndex_and_Schweiz.rtd
+	LogFile:	?scriptpath?\?scriptname?_import.txt	
+	
+	IncludeList:	CHDVD.SW>CHDVD, ABBN.SW>ABBN, ADEN.SW>ADEN, ALC.SW>ALC, CFR.SW>CFR, GEBN.SW>GEBN, GIVN.SW>GIVN, HOLN.SW>HOLN  {"SCHWEIZ"}
+	IncludeList:	KNIN.SW>KNIN, LOGN.SW>LOGN, LONN.SW>LONN, NESN.SW>NESN, NOVN.SW>NOVN, PGHN.SW>PGHN, RO.SW>RO, SIKA.SW>SIKA {"SCHWEIZ"}
+	IncludeList:	SLHN.SW>SLHN, SREN.SW>SREN, UBSG.SW>UBSG, UHR.SW>UHR, ZURN.SW>ZURN {"SCHWEIZ"}
+	
+		
+Settings:	
+	AccountSize:	100000
+	DataFile:	wordIndex_and_Schweiz.rtd
+	
+	BarSize:	Daily
+	UseAvailableBars:	True
+	
+	HolidayList: 	us_auto
+	StartDate:	01/01/1999
+	EndDate:	Latest
+	
+OrderSettings:
+	StartDate:	2022/8/1
+	EndDate:	Latest
+	OrderClerkFolder:	?scriptpath?\OrderClerkPaper
+	OrdersMode:	OrderClerk
+	
+TestSettings:
+	StartDate:	01/01/1999
+	EndDate:	31/12/2026
+
+Data:
+	NumberOfStocks:	#Sum InList("SCHWEIZ")
+
+Strategy: test_orders_schweiz
+	Side:	Long
+	EntrySetup:	InList("SCHWEIZ")
+	ExitRule:	1
+	EntryLimit:	C*0.99 // just that we have a limit price, so that IB doesn't barf on same symbol buy/sell on the same day
+	Quantity:	100 / NumberOfStocks
+	QtyType:	Percent
+	
+Charts:	
+	Price:	C	
