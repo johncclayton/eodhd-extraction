@@ -27,7 +27,7 @@ Settings:
 	DataFile:	sw-symbols.rtd
 
 OrderSettings:
-	StartDate:	2022/8/1
+	StartDate:	2026/3/14
 	EndDate:	Latest
 	OrderClerkFolder:	?scriptpath?\OrderClerkPaper
 	OrdersMode:	OrderClerk
