@@ -1,0 +1,50 @@
+# Sample VZ idea candidate universe.
+# Header format must be: description (rt-list-name, CUR):
+
+USA core S&P 500 (USA_CORE_SPX, USD):
+CSSPX
+
+Europe ex Switzerland (EUROPE_EX_CH, EUR):
+CS9
+
+Pacific ex Japan (PACIFIC_EX_JP, USD):
+PACUSA
+
+Japan core IMI (JAPAN_CORE_IMI, JPY):
+SJPA
+
+Global infrastructure (GLOBAL_INFRA, USD):
+INFR
+
+Global dividend yield (GLOBAL_DIV_YLD, CHF):
+VHYL
+
+World small cap (WORLD_SMALL_CAP, CHF):
+WOSC
+
+Emerging markets (EM_CORE_IMI, USD):
+EIMI
+
+Swiss all cap (SWISS_ALL_CAP, CHF):
+CHSPI
+
+Swiss dividend yield (SWISS_DIV_YLD, CHF):
+CHDVD
+
+Swiss small and mid cap (SWISS_SMID_CAP, CHF):
+CSSMIM
+
+Developed global real estate (DEV_RE_GLOBAL, USD):
+HPRD
+
+Global real estate CHF dist (GLOBAL_RE_CHF, CHF):
+GBRE
+
+Global real estate CHF acc (GLOBAL_RE_ACC, CHF):
+GLRA
+
+Global real estate 100 (GLOBAL_RE_100, CHF):
+TRET
+
+Swiss real estate funds (SWISS_RE_FUNDS, CHF):
+SRECHA, SRFCHA
