@@ -352,10 +352,60 @@ Most time is spent reading every `*-symbols-full.json` under `output/` and build
 
 - **Profile** — Run `.\Invoke-EodhdSymbolValidation.ps1 -ProfileTimings` to print per-phase timings and the slowest payload files.
 
+## Candidate symbol validation (`Eodhd-CandidateSymbolValidation.ps1`)
+
+Use `Eodhd-CandidateSymbolValidation.ps1` when you want to validate a strategy candidate universe against the exported EODHD listing snapshots and then prove the shared history depth supported by the full set.
+
+The workflow answers:
+
+- which candidate symbols exist in the exported listing snapshots
+- which of those candidates match the required currency
+- which exchange-qualified symbol will be used for history download
+- what the first and last available bar dates are for each valid symbol
+- what shared start date the full validated set supports
+
+Input format:
+
+```text
+USA core S&P 500 (USA_CORE_SPX, USD):
+CSSPX
+
+Swiss real estate funds (SWISS_RE_FUNDS, CHF):
+SRECHA, SRFCHA
+```
+
+Header format must be:
+
+```text
+description (rt-list-name, CUR):
+```
+
+Example:
+
+```powershell
+pwsh -File .\Eodhd-CandidateSymbolValidation.ps1 `
+  -InputFilePath .\analysis\candidate-symbol-validation\sample-vz-idea\candidate_input.txt `
+  -AnalysisDirectory .\analysis\candidate-symbol-validation\sample-vz-idea
+```
+
+Outputs written into the analysis directory include:
+
+- `candidate_validation.csv`
+- `history_symbols.txt`
+- `history_summary.csv`
+- `candidate_results.csv`
+- `summary.md`
+- `history-data\*.csv`
+
+Sample analysis input:
+
+- `analysis/candidate-symbol-validation/sample-vz-idea/candidate_input.txt`
+
 ## Files
 
 - `fallback\OrderClerkExchanges.csv` - country (column 3) → exchange acronym mapping for syminfo / listing exchange tokens.
 - `eodhd-config.json` - exchange selection and runtime settings.
+- `Eodhd-CandidateSymbolValidation.ps1` - validate candidate universes and compute shared supported history start date.
 - `Invoke-EodhdSymbolExport.ps1` - main exporter.
 - `Invoke-EodhdSymbolValidation.ps1` - validate symbol lists against exported `*-symbols-full.json` payloads.
 - `Run-EodhdSnapshot.ps1` - scheduler-friendly wrapper script.

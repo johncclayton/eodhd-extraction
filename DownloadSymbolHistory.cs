@@ -22,7 +22,7 @@ if (options.ShowHelp)
 var rootDirectory = FindRepoRoot(Environment.CurrentDirectory);
 var envPath = Path.Combine(rootDirectory, ".env");
 var apiToken = GetApiToken(envPath);
-var dataDirectory = Path.Combine(rootDirectory, "data");
+var dataDirectory = ResolveOutputDirectory(options.OutputDirectory, rootDirectory, Environment.CurrentDirectory);
 Directory.CreateDirectory(dataDirectory);
 var symbols = LoadSymbols(options, Environment.CurrentDirectory);
 if (symbols.Count == 0)
@@ -45,6 +45,7 @@ Console.WriteLine($"Repo root: {rootDirectory}");
 Console.WriteLine($"Output dir: {dataDirectory}");
 Console.WriteLine($"Symbols: {string.Join(", ", symbols)}");
 
+var historySummaries = new List<HistorySummaryRow>();
 foreach (var symbol in symbols)
 {
     cancellation.Token.ThrowIfCancellationRequested();
@@ -61,6 +62,13 @@ foreach (var symbol in symbols)
     await WriteBarsCsvAsync(outputPath, bars, cancellation.Token);
 
     var summary = SummarizeBars(bars);
+    historySummaries.Add(new HistorySummaryRow(
+        symbol,
+        outputPath,
+        bars.Count,
+        bars.Count == 0 ? null : bars[0].Date,
+        bars.Count == 0 ? null : bars[^1].Date
+    ));
     Console.WriteLine($"Saved {symbol} -> {outputPath}");
     Console.WriteLine(summary);
 }
@@ -71,13 +79,28 @@ Console.WriteLine();
 Console.WriteLine($"Saved RealTest include list -> {symbolsListPath}");
 
 var importExamplePath = Path.Combine(dataDirectory, "import-example.txt");
-await File.WriteAllTextAsync(importExamplePath, BuildImportExample(), new UTF8Encoding(false), cancellation.Token);
+await File.WriteAllTextAsync(importExamplePath, BuildImportExample(dataDirectory), new UTF8Encoding(false), cancellation.Token);
 Console.WriteLine($"Saved RealTest import example -> {importExamplePath}");
+
+if (!string.IsNullOrWhiteSpace(options.SummaryCsvPath))
+{
+    var summaryCsvPath = Path.GetFullPath(options.SummaryCsvPath, Environment.CurrentDirectory);
+    var summaryDirectory = Path.GetDirectoryName(summaryCsvPath);
+    if (!string.IsNullOrWhiteSpace(summaryDirectory))
+    {
+        Directory.CreateDirectory(summaryDirectory);
+    }
+
+    await WriteHistorySummaryCsvAsync(summaryCsvPath, historySummaries, cancellation.Token);
+    Console.WriteLine($"Saved history summary -> {summaryCsvPath}");
+}
 
 static AppOptions ParseArguments(string[] rawArgs)
 {
     var positionalSymbols = new List<string>();
     string? symbolFilePath = null;
+    string? outputDirectory = null;
+    string? summaryCsvPath = null;
     var showHelp = false;
 
     for (var i = 0; i < rawArgs.Length; i++)
@@ -101,10 +124,33 @@ static AppOptions ParseArguments(string[] rawArgs)
             continue;
         }
 
+        if (arg.Equals("--output-dir", StringComparison.OrdinalIgnoreCase)
+            || arg.Equals("-o", StringComparison.OrdinalIgnoreCase))
+        {
+            if (i + 1 >= rawArgs.Length)
+            {
+                throw new ArgumentException("Missing value for --output-dir.");
+            }
+
+            outputDirectory = rawArgs[++i];
+            continue;
+        }
+
+        if (arg.Equals("--summary-csv", StringComparison.OrdinalIgnoreCase))
+        {
+            if (i + 1 >= rawArgs.Length)
+            {
+                throw new ArgumentException("Missing value for --summary-csv.");
+            }
+
+            summaryCsvPath = rawArgs[++i];
+            continue;
+        }
+
         positionalSymbols.Add(arg);
     }
 
-    return new AppOptions(positionalSymbols, symbolFilePath, showHelp);
+    return new AppOptions(positionalSymbols, symbolFilePath, outputDirectory, summaryCsvPath, showHelp);
 }
 
 static bool IsHelpFlag(string value) =>
@@ -171,15 +217,28 @@ static void PrintUsage()
     Console.WriteLine("  dotnet run DownloadSymbolHistory.cs -- HPRD.SW,GBRE.SW,TRET.SW");
     Console.WriteLine("  dotnet run DownloadSymbolHistory.cs -- --symbol-file .\\symbols.txt");
     Console.WriteLine("  dotnet run DownloadSymbolHistory.cs -- --symbol-file .\\symbols.txt GBRE.SW");
+    Console.WriteLine("  dotnet run DownloadSymbolHistory.cs -- --output-dir .\\analysis\\run1\\history-data --summary-csv .\\analysis\\run1\\history_summary.csv --symbol-file .\\symbols.txt");
     Console.WriteLine();
     Console.WriteLine("Notes:");
     Console.WriteLine("  - Reads EODHD_API_TOKEN from .env in eodhd-extraction or from the process environment.");
-    Console.WriteLine("  - Writes one SYMBOL.csv file per symbol under eodhd-extraction/data/.");
+    Console.WriteLine("  - Writes one SYMBOL.csv file per symbol under eodhd-extraction/data/ by default.");
+    Console.WriteLine("  - --output-dir overrides the default output directory.");
+    Console.WriteLine("  - --summary-csv writes first/last-date history metadata for downstream analysis.");
     Console.WriteLine("  - Also writes symbols-rt.txt and import-example.txt for RealTest.");
     Console.WriteLine("  - CSV columns are Date,Open,High,Low,Close,Volume,AdjClose.");
     Console.WriteLine("  - --symbol-file accepts one symbol per line, comma-separated symbols, or whitespace-separated symbols.");
     Console.WriteLine("  - Blank lines and lines starting with # are ignored.");
     Console.WriteLine("  - Omits from/to so EODHD returns the full available history.");
+}
+
+static string ResolveOutputDirectory(string? outputDirectory, string rootDirectory, string currentDirectory)
+{
+    if (string.IsNullOrWhiteSpace(outputDirectory))
+    {
+        return Path.Combine(rootDirectory, "data");
+    }
+
+    return Path.GetFullPath(outputDirectory, currentDirectory);
 }
 
 static string FindRepoRoot(string startDirectory)
@@ -466,13 +525,35 @@ static string SummarizeBars(IReadOnlyList<EodBar> bars)
     return $"Rows: {bars.Count}; first date: {bars[0].Date:yyyy-MM-dd}; last date: {bars[^1].Date:yyyy-MM-dd}";
 }
 
-static string BuildImportExample()
+static async Task WriteHistorySummaryCsvAsync(string outputPath, IReadOnlyList<HistorySummaryRow> rows, CancellationToken cancellationToken)
 {
-    return """
+    await using var writer = new StreamWriter(outputPath, false, new UTF8Encoding(false));
+    await writer.WriteLineAsync("Symbol,CsvPath,Rows,FirstDate,LastDate");
+
+    foreach (var row in rows.OrderBy(static x => x.Symbol, StringComparer.OrdinalIgnoreCase))
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var line = string.Join(
+            ',',
+            EscapeCsv(row.Symbol),
+            EscapeCsv(row.CsvPath),
+            row.Rows.ToString(CultureInfo.InvariantCulture),
+            row.FirstDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? "",
+            row.LastDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? ""
+        );
+        await writer.WriteLineAsync(line);
+    }
+}
+
+static string BuildImportExample(string dataDirectory)
+{
+    var normalizedDirectory = dataDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+    var includeListPath = Path.Combine(normalizedDirectory, "symbols-rt.txt");
+    return $"""
 Import:
 	DataSource:	CSV
-	DataPath:	?scriptpath?\data
-	IncludeList:	?scriptpath?\data\symbols-rt.txt
+	DataPath:	{normalizedDirectory}
+	IncludeList:	{includeListPath}
 	CSVFields:	Date,Open,High,Low,Close,Volume,AdjClose
 	SaveAs:	imported_from_eodhd_csv.rtd
 
@@ -545,6 +626,18 @@ static string SanitizeFileName(string symbol)
     return Regex.Replace(symbol, pattern, "_");
 }
 
+static string EscapeCsv(string value)
+{
+    if (value.Contains('"'))
+    {
+        value = value.Replace("\"", "\"\"");
+    }
+
+    return value.IndexOfAny([',', '"', '\r', '\n']) >= 0
+        ? $"\"{value}\""
+        : value;
+}
+
 record EodBar(
     DateOnly Date,
     decimal Open,
@@ -555,8 +648,18 @@ record EodBar(
     decimal AdjClose
 );
 
+record HistorySummaryRow(
+    string Symbol,
+    string CsvPath,
+    int Rows,
+    DateOnly? FirstDate,
+    DateOnly? LastDate
+);
+
 record AppOptions(
     List<string> PositionalSymbols,
     string? SymbolFilePath,
+    string? OutputDirectory,
+    string? SummaryCsvPath,
     bool ShowHelp
 );
