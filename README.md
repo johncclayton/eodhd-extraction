@@ -203,6 +203,85 @@ Example:
 .\Invoke-EodhdSymbolExport.ps1 -AllExchanges
 ```
 
+## Full history downloader (`DownloadSymbolHistory.cs`)
+
+`DownloadSymbolHistory.cs` is a single-file .NET app that downloads full EOD history for one or more symbols and writes RealTest-compatible CSV files into `data/`.
+
+It reads `EODHD_API_TOKEN` from `.env` in this folder, or from the process environment if the key is not present in `.env`.
+
+Example using direct symbol arguments:
+
+```powershell
+dotnet run .\DownloadSymbolHistory.cs -- HPRD.SW GBRE.SW TRET.SW
+```
+
+Example using a bulk symbol file:
+
+```powershell
+dotnet run .\DownloadSymbolHistory.cs -- --symbol-file .\symbols.txt
+```
+
+Example mixing a symbol file with extra symbols on the command line:
+
+```powershell
+dotnet run .\DownloadSymbolHistory.cs -- --symbol-file .\symbols.txt SRECHA.SW
+```
+
+The `--symbol-file` format is flexible:
+
+- one symbol per line is supported
+- comma-separated symbols are supported
+- whitespace-separated symbols are supported
+- blank lines are ignored
+- lines beginning with `#` are ignored
+
+Example `symbols.txt`:
+
+```text
+# Foreign property
+HPRD.SW
+GBRE.SW
+TRET.SW
+
+# Swiss property
+SRECHA.SW
+```
+
+### Output format
+
+The downloader writes:
+
+- `data/<SYMBOL>.csv` - one file per symbol in RealTest multi-file CSV import format
+- `data/symbols-rt.txt` - one symbol per line for use in `IncludeList`
+- `data/import-example.txt` - sample RealTest `Import:` block
+
+Each per-symbol CSV file contains:
+
+```text
+Date,Open,High,Low,Close,Volume,AdjClose
+```
+
+This is intended for `DataSource: CSV` with `DataPath` and `CSVFields`, not `DataSource: EODHD`.
+
+Example RealTest import:
+
+```text
+Import:
+	DataSource:	CSV
+	DataPath:	?scriptpath?\data
+	IncludeList:	?scriptpath?\data\symbols-rt.txt
+	CSVFields:	Date,Open,High,Low,Close,Volume,AdjClose
+	SaveAs:	imported_from_eodhd_csv.rtd
+```
+
+### Rate limiting
+
+The downloader respects EODHD retry and rate-limit signals:
+
+- honors `Retry-After` when present
+- retries `429`, `408`, and `5xx` responses
+- watches `X-RateLimit-Remaining` and `X-RateLimit-Limit` to back off when close to the limit
+
 ## Transcript Logging (Wrapper Script)
 
 `Run-EodhdSnapshot.ps1` uses PowerShell transcript logging:
