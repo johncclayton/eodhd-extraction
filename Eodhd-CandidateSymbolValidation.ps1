@@ -1,4 +1,11 @@
 param(
+    <#
+    Optional shorthand (position 0): folder containing candidate_input.txt, or path to candidate_input.txt / another input file.
+    Do not combine with -InputFilePath or -Folder.
+    #>
+    [Parameter(Mandatory = $false, Position = 0)]
+    [string]$Path = "",
+
     [Parameter(Mandatory = $false)]
     [string]$InputFilePath = "",
 
@@ -7,6 +14,14 @@ param(
 
     [Parameter(Mandatory = $false)]
     [string]$AnalysisDirectory = "",
+
+    <#
+    Points at an analysis folder that contains candidate_input.txt.
+    Sets input to <Folder>\candidate_input.txt and AnalysisDirectory to the resolved folder.
+    Do not combine with -InputFilePath, -Path, or a different -AnalysisDirectory.
+    #>
+    [Parameter(Mandatory = $false)]
+    [string]$Folder = "",
 
     [Parameter(Mandatory = $false)]
     [string]$PreferredExchangeCode = "SW",
@@ -83,6 +98,29 @@ function Get-SymbolLookupKeys {
         ($raw -replace '\.', '-')
         (ConvertTo-NormalizedCandidateSymbol -Value $raw)
     ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique
+}
+
+# EODHD-style TICKER.EXCHANGE in candidate files (e.g. ALC.SW). Exchange suffix must be 2+ chars so BRK.B stays one symbol.
+function Get-ListingLookupSymbolAndExchange {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$CandidateSymbol
+    )
+
+    $trim = $CandidateSymbol.Trim().ToUpperInvariant()
+    $result = [pscustomobject]@{
+        LookupSymbol     = $trim
+        RequestedExchange = ""
+    }
+    if ($trim -match '^(.+)\.([A-Z][A-Z0-9]{1,5})$') {
+        $base = $matches[1].Trim()
+        $exch = $matches[2].Trim()
+        if ($exch.Length -ge 2 -and -not [string]::IsNullOrWhiteSpace($base)) {
+            $result.LookupSymbol = $base
+            $result.RequestedExchange = $exch
+        }
+    }
+    return $result
 }
 
 function Test-RequiredCurrencyMatches {
@@ -314,9 +352,13 @@ function Get-CandidateValidationRows {
 
     foreach ($section in @($Sections)) {
         foreach ($symbol in @($section.Symbols)) {
+            $split = Get-ListingLookupSymbolAndExchange -CandidateSymbol ([string]$symbol)
+            $lookupSymbol = [string]$split.LookupSymbol
+            $requestedExchange = [string]$split.RequestedExchange
+
             $tokenMap = @{}
 
-            foreach ($candidate in (Get-SymbolLookupKeys -Symbol ([string]$symbol))) {
+            foreach ($candidate in (Get-SymbolLookupKeys -Symbol $lookupSymbol)) {
                 if ($ListingIndexes.Exact.ContainsKey($candidate)) {
                     foreach ($token in @($ListingIndexes.Exact[$candidate])) {
                         $tokenMap[[string]$token] = $true
@@ -348,9 +390,10 @@ function Get-CandidateValidationRows {
                 Sort-Object Exchange, Currency
             )
 
+            $exchangeFilter = if (-not [string]::IsNullOrWhiteSpace($requestedExchange)) { $requestedExchange } else { $PreferredExchangeCode }
             $preferredMatches = @(
                 $currencyMatches |
-                Where-Object { $_.Exchange -eq $PreferredExchangeCode }
+                Where-Object { $_.Exchange -eq $exchangeFilter }
             )
 
             $status = ""
@@ -367,15 +410,29 @@ function Get-CandidateValidationRows {
                 $statusDetail = "Symbol exists, but none of the listings matched required currency $($section.RequiredCurrency)."
             }
             elseif ($preferredMatches.Count -eq 0) {
-                $status = "not_on_preferred_exchange"
-                $statusDetail = "Currency matched, but symbol was not found on preferred exchange $PreferredExchangeCode."
+                if (-not [string]::IsNullOrWhiteSpace($requestedExchange)) {
+                    $status = "not_on_requested_exchange"
+                    $statusDetail = "Currency matched, but symbol was not found on requested exchange $requestedExchange."
+                }
+                else {
+                    $status = "not_on_preferred_exchange"
+                    $statusDetail = "Currency matched, but symbol was not found on preferred exchange $PreferredExchangeCode."
+                }
             }
             else {
                 $status = "valid"
-                $statusDetail = "Listing found on preferred exchange and currency matched."
+                if (-not [string]::IsNullOrWhiteSpace($requestedExchange)) {
+                    $statusDetail = "Listing found on requested exchange $requestedExchange and currency matched."
+                }
+                else {
+                    $statusDetail = "Listing found on preferred exchange and currency matched."
+                }
                 $chosenExchange = [string]$preferredMatches[0].Exchange
                 $chosenCurrency = [string]$preferredMatches[0].Currency
             }
+
+            $apiBase = $lookupSymbol
+            $chosenApiSymbol = $(if ([string]::IsNullOrWhiteSpace($chosenExchange)) { "" } else { "{0}.{1}" -f $apiBase, $chosenExchange })
 
             $rows += [pscustomobject]@{
                 SectionDescription       = [string]$section.Description
@@ -387,7 +444,7 @@ function Get-CandidateValidationRows {
                 PreferredExchangeCode    = $PreferredExchangeCode
                 ChosenExchange           = $chosenExchange
                 ChosenCurrency           = $chosenCurrency
-                ChosenApiSymbol          = $(if ([string]::IsNullOrWhiteSpace($chosenExchange)) { "" } else { "{0}.{1}" -f $symbol, $chosenExchange })
+                ChosenApiSymbol          = $chosenApiSymbol
                 AllExchanges             = (($allMatches | ForEach-Object { $_.Exchange }) -join ';')
                 AllCurrencies            = (($allMatches | ForEach-Object { $_.Currency }) -join ';')
                 CurrencyMatchedExchanges = (($currencyMatches | ForEach-Object { $_.Exchange }) -join ';')
@@ -611,6 +668,8 @@ function Write-SummaryMarkdown {
 function Invoke-EodhdCandidateSymbolValidation {
     [CmdletBinding()]
     param(
+        [Parameter(Mandatory = $false, Position = 0)]
+        [string]$Path,
         [Parameter(Mandatory = $false)]
         [string]$InputFilePath,
         [Parameter(Mandatory = $false)]
@@ -618,12 +677,66 @@ function Invoke-EodhdCandidateSymbolValidation {
         [Parameter(Mandatory = $false)]
         [string]$AnalysisDirectory,
         [Parameter(Mandatory = $false)]
+        [string]$Folder,
+        [Parameter(Mandatory = $false)]
         [string]$PreferredExchangeCode,
         [Parameter(Mandatory = $false)]
         [switch]$SkipHistoryDownload,
         [Parameter(Mandatory = $false)]
         [switch]$ProfileTimings
     )
+
+    if (-not [string]::IsNullOrWhiteSpace($Path)) {
+        if (-not [string]::IsNullOrWhiteSpace($InputFilePath)) {
+            throw "Cannot use -Path together with -InputFilePath. Pass one location, or use the explicit parameters only."
+        }
+        if (-not [string]::IsNullOrWhiteSpace($Folder)) {
+            throw "Cannot use -Path together with -Folder."
+        }
+        $resolvedPath = [System.IO.Path]::GetFullPath($Path)
+        if (-not (Test-Path -LiteralPath $resolvedPath)) {
+            throw "Path not found: $resolvedPath"
+        }
+        if (Test-Path -LiteralPath $resolvedPath -PathType Container) {
+            $candidateInFolder = Join-Path $resolvedPath "candidate_input.txt"
+            if (-not (Test-Path -LiteralPath $candidateInFolder -PathType Leaf)) {
+                throw "Directory does not contain candidate_input.txt: $resolvedPath"
+            }
+            if (-not [string]::IsNullOrWhiteSpace($AnalysisDirectory)) {
+                $resolvedAd = [System.IO.Path]::GetFullPath($AnalysisDirectory)
+                if (-not $resolvedAd.Equals($resolvedPath, [System.StringComparison]::OrdinalIgnoreCase)) {
+                    throw "Cannot use -Path (folder) together with a different -AnalysisDirectory."
+                }
+            }
+            $InputFilePath = $candidateInFolder
+            $AnalysisDirectory = $resolvedPath
+        }
+        else {
+            $InputFilePath = $resolvedPath
+        }
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($Folder)) {
+        $resolvedFolder = [System.IO.Path]::GetFullPath($Folder)
+        if (-not (Test-Path -LiteralPath $resolvedFolder -PathType Container)) {
+            throw "Folder not found or not a directory: $resolvedFolder"
+        }
+        $candidateInFolder = Join-Path $resolvedFolder "candidate_input.txt"
+        if (-not (Test-Path -LiteralPath $candidateInFolder -PathType Leaf)) {
+            throw "candidate_input.txt not found in folder: $resolvedFolder"
+        }
+        if (-not [string]::IsNullOrWhiteSpace($InputFilePath)) {
+            throw "Cannot use -Folder together with -InputFilePath or -Path. Point -Folder at a directory that contains candidate_input.txt."
+        }
+        if (-not [string]::IsNullOrWhiteSpace($AnalysisDirectory)) {
+            $resolvedAd = [System.IO.Path]::GetFullPath($AnalysisDirectory)
+            if (-not $resolvedAd.Equals($resolvedFolder, [System.StringComparison]::OrdinalIgnoreCase)) {
+                throw "Cannot use -Folder together with a different -AnalysisDirectory."
+            }
+        }
+        $InputFilePath = $candidateInFolder
+        $AnalysisDirectory = $resolvedFolder
+    }
 
     $resolvedInputFilePath = Resolve-CandidatePath -RawInputFilePath $InputFilePath
     $resolvedConfigPath = if ([string]::IsNullOrWhiteSpace($ConfigPath)) { Join-Path $script:EodhdRepoRoot "eodhd-config.json" } else { [System.IO.Path]::GetFullPath($ConfigPath) }
@@ -681,9 +794,11 @@ function Invoke-EodhdCandidateSymbolValidation {
 
 if ($MyInvocation.InvocationName -ne ".") {
     $exitCode = Invoke-EodhdCandidateSymbolValidation `
+        -Path $Path `
         -InputFilePath $InputFilePath `
         -ConfigPath $ConfigPath `
         -AnalysisDirectory $AnalysisDirectory `
+        -Folder $Folder `
         -PreferredExchangeCode $PreferredExchangeCode `
         -SkipHistoryDownload:$SkipHistoryDownload `
         -ProfileTimings:$ProfileTimings
