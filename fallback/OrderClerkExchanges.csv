@@ -1,49 +1,60 @@
 Acronym,TimeZone,Country
-AMEX,Eastern Standard Time,US
-NASDAQ,Eastern Standard Time,US
-NYSE,Eastern Standard Time,US
-BATS,Eastern Standard Time,US
+VSE,W. Europe Standard Time,AT
 ASX,E. Australia Standard Time,AU
-IBIS,W. Europe Standard Time,DE
-SBF,Romance Standard Time,FR
-LSE,GMT Standard Time,GB
-EDGEA,Eastern Standard Time,US
-ISLAND,Eastern Standard Time,US
-ARCA,Eastern Standard Time,US
-TSX,Eastern Standard Time,CA
-TSE,Eastern Standard Time,CA
+SNFE,E. Australia Standard Time,AU
+ENEXT.BE,Romance Standard Time,BE
+BMF,E. South America Standard Time,BR
+CDE,Eastern Standard Time,CA
 PURE,Eastern Standard Time,CA
+TSE,Eastern Standard Time,CA
+TSX,Eastern Standard Time,CA
 VENTURE,Eastern Standard Time,CA
+EBS,W. Europe Standard Time,CH
+EUREX,W. Europe Standard Time,DE
+FWB,W. Europe Standard Time,DE
+IBIS,W. Europe Standard Time,DE
+SWB,W. Europe Standard Time,DE
+BM,Romance Standard Time,ES
+MEFFRV,Romance Standard Time,ES
+MATIF,Romance Standard Time,FR
+SBF,Romance Standard Time,FR
+BATEEU,GMT Standard Time,GB
+CHIXJ,GMT Standard Time,GB
+ICEEU,GMT Standard Time,GB
+IPE,UTC,GB
+LSE,GMT Standard Time,GB
+HKFE,China Standard Time,HK
+SEHK,China Standard Time,HK
+BUX,Central Europe Standard Time,HU
+TASE,Israel Standard Time,IL
+BSE,India Standard Time,IN
+NSE,India Standard Time,IN
+BVME,W. Europe Standard Time,IT
+IDEM,W. Europe Standard Time,IT
+OSE.JPN,Tokyo Standard Time,JP
 TSEJ,Tokyo Standard Time,JP
+KSE,Korea Standard Time,KR
+MEXI,Central Standard Time (Mexico),MX
+BURSAMY,Singapore Standard Time,MY
+AEB,W. Europe Standard Time,NL
+ENDEX,W. Europe Standard Time,NL
+NZX,New Zealand Standard Time,NZ
+WSE,Central European Standard Time,PL
+MOEX,Russian Standard Time,RU
+OMX,W. Europe Standard Time,SE
+SGX,Singapore Standard Time,SG
 AEQLIT,Eastern Standard Time,US
+AMEX,Eastern Standard Time,US
+ARCA,Eastern Standard Time,US
+BATS,Eastern Standard Time,US
 CBOE,Eastern Standard Time,US
 CBOT,Central Standard Time,US
 CME,Central Standard Time,US
 COMEX,Eastern Standard Time,US
+EDGEA,Eastern Standard Time,US
+ISLAND,Eastern Standard Time,US
+NASDAQ,Eastern Standard Time,US
 NYBOT,Eastern Standard Time,US
 NYMEX,Eastern Standard Time,US
-IPE,UTC,GB
-CDE,Eastern Standard Time,CA
-SGX,Singapore Standard Time,SG
-HKFE,Singapore Standard Time,HK
-BURSAMY,Singapore Standard Time,MY
-KSE,Tokyo Standard Time,KR
-MATIF,Romance Standard Time,FR
-EUREX,W. Europe Standard Time,DE
-SNFE,E. Australia Standard Time,AU
-ICEEU,GMT Standard Time,GB
-ENDEX,W. Europe Standard Time,NL
-OSE.JPN,Tokyo Standard Time,JP
-BVME,W. Europe Standard Time,IT
-AEB,W. Europe Standard Time,NL
-BM,Romance Standard Time,ES
-VSE,W. Europe Standard Time,AT
-SWB,W. Europe Standard Time,DE
-FWB,W. Europe Standard Time,DE
-BATEEU,GMT Standard Time,GB
-CHIXJ,GMT Standard Time,GB
-IDEM,W. Europe Standard Time,IT
-MEFFRV,Romance Standard Time,ES
-EBS,W. Europe Standard Time,CH
-OMX,W. Europe Standard Time,SE
-ENEXT.BE,Romance Standard Time,BE
+NYSE,Eastern Standard Time,US
+JSE,South Africa Standard Time,ZA
