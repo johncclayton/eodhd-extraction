@@ -11,3 +11,6 @@ analysis/
 spike-exch-liq/.venv/
 .cache/
 spike-exch-liq/__pycache__/*.pyc
+exch-liq-spike-summary.csv
+exch-liq-spike.html
+exch-liq-spike.json
