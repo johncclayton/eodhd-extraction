@@ -1,0 +1,12 @@
+{
+  "adjustments": [
+    {
+      "exchange": "XETRA",
+      "code": "GG9B",
+      "set": {
+        "Isin": "GB00B00FHZ82"
+      },
+      "reason": "EODHD reports ISIN DE000A0LP781 for Gold Bullion Securities EUR; the correct ISIN is GB00B00FHZ82."
+    }
+  ]
+}

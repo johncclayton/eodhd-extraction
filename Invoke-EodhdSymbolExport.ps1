@@ -481,6 +481,107 @@ Add or fix a row in fallback\OrderClerkExchanges.csv (column 3 country ISO2 must
         return $s.Trim()
     }
 
+    function Get-EodhdSymbolAdjustments {
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory = $true)]
+            [string]$AdjustmentsPath
+        )
+
+        if (-not (Test-Path -LiteralPath $AdjustmentsPath)) {
+            return @()
+        }
+
+        $document = Get-Content -LiteralPath $AdjustmentsPath -Raw | ConvertFrom-Json
+        if ($null -eq $document -or $null -eq $document.PSObject.Properties["adjustments"]) {
+            throw "Symbol adjustments file must contain an 'adjustments' array: $AdjustmentsPath"
+        }
+
+        $adjustments = @()
+        $index = 0
+        foreach ($entry in @($document.adjustments)) {
+            $index++
+            if ($null -eq $entry) {
+                continue
+            }
+
+            $exchange = [string]$entry.exchange
+            $code = [string]$entry.code
+            if ([string]::IsNullOrWhiteSpace($exchange) -or [string]::IsNullOrWhiteSpace($code)) {
+                throw "Symbol adjustment #$index is missing 'exchange' or 'code': $AdjustmentsPath"
+            }
+
+            $setProperty = $entry.PSObject.Properties["set"]
+            $fieldValues = @()
+            if ($null -ne $setProperty -and $null -ne $setProperty.Value) {
+                $fieldValues = @($setProperty.Value.PSObject.Properties | ForEach-Object { [pscustomobject]@{ Name = $_.Name; Value = $_.Value } })
+            }
+
+            if ($fieldValues.Count -eq 0) {
+                throw "Symbol adjustment #$index ($code.$exchange) has no fields in 'set': $AdjustmentsPath"
+            }
+
+            $reasonProperty = $entry.PSObject.Properties["reason"]
+            $adjustments += [pscustomobject]@{
+                Exchange = $exchange.Trim()
+                Code = $code.Trim()
+                Fields = $fieldValues
+                Reason = if ($null -ne $reasonProperty) { [string]$reasonProperty.Value } else { "" }
+            }
+        }
+
+        return $adjustments
+    }
+
+    function Invoke-EodhdSymbolAdjustments {
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory = $true)]
+            [AllowEmptyCollection()]
+            [object[]]$Rows,
+            [Parameter(Mandatory = $true)]
+            [string]$ExchangeCode,
+            [Parameter(Mandatory = $true)]
+            [AllowEmptyCollection()]
+            [psobject[]]$Adjustments,
+            [Parameter(Mandatory = $true)]
+            [string]$LogFile
+        )
+
+        $applied = 0
+        $exchangeAdjustments = @($Adjustments | Where-Object { [string]::Equals($_.Exchange, $ExchangeCode, [System.StringComparison]::OrdinalIgnoreCase) })
+
+        foreach ($adjustment in $exchangeAdjustments) {
+            $matchingRows = @($Rows | Where-Object { $null -ne $_ -and [string]::Equals([string]$_.Code, $adjustment.Code, [System.StringComparison]::OrdinalIgnoreCase) })
+            if ($matchingRows.Count -eq 0) {
+                $warningMessage = "Symbol adjustment for $($adjustment.Code).$ExchangeCode did not match any row returned by EODHD; adjustment not applied."
+                Write-Warning $warningMessage
+                "[$((Get-Date).ToUniversalTime().ToString("o"))] WARNING: $warningMessage" | Add-Content -LiteralPath $LogFile
+                continue
+            }
+
+            foreach ($row in $matchingRows) {
+                foreach ($field in $adjustment.Fields) {
+                    $existingProperty = $row.PSObject.Properties[$field.Name]
+                    $oldValue = if ($null -ne $existingProperty) { [string]$existingProperty.Value } else { "<missing>" }
+
+                    if ($null -ne $existingProperty) {
+                        $existingProperty.Value = $field.Value
+                    }
+                    else {
+                        $row | Add-Member -NotePropertyName $field.Name -NotePropertyValue $field.Value
+                    }
+
+                    "[$((Get-Date).ToUniversalTime().ToString("o"))] Adjusted $($adjustment.Code).$ExchangeCode $($field.Name): '$oldValue' -> '$($field.Value)'. $($adjustment.Reason)" | Add-Content -LiteralPath $LogFile
+                }
+
+                $applied++
+            }
+        }
+
+        return $applied
+    }
+
     try {
         if (-not (Test-Path -LiteralPath $ConfigPath)) {
             throw "Config file not found: $ConfigPath"
@@ -662,6 +763,15 @@ Add or fix a row in fallback\OrderClerkExchanges.csv (column 3 country ISO2 must
             }
         }
 
+        $symbolAdjustmentsFile = "symbol-adjustments.json"
+        if ($null -ne $config.PSObject.Properties["symbolAdjustmentsFile"] -and -not [string]::IsNullOrWhiteSpace([string]$config.symbolAdjustmentsFile)) {
+            $symbolAdjustmentsFile = [string]$config.symbolAdjustmentsFile
+        }
+
+        $symbolAdjustmentsPath = Resolve-ConfigRelativePath -Path $symbolAdjustmentsFile -ConfigDirectory $configDirectory
+        $symbolAdjustments = @(Get-EodhdSymbolAdjustments -AdjustmentsPath $symbolAdjustmentsPath)
+        "[$((Get-Date).ToUniversalTime().ToString("o"))] Loaded $($symbolAdjustments.Count) symbol adjustment(s) from: $symbolAdjustmentsPath" | Add-Content -LiteralPath $logFile
+
         $exchangeResults = @()
         $anyExchangePullFailed = $false
         $outputWriteFailed = $false
@@ -672,6 +782,7 @@ Add or fix a row in fallback\OrderClerkExchanges.csv (column 3 country ISO2 must
                 status             = "Succeeded"
                 totalSymbols       = 0
                 filteredSymbols    = 0
+                adjustmentsApplied = 0
                 outputSymbolsOnlyFile = ""
                 outputPayloadFile  = ""
                 outputSymbolInfoFile = ""
@@ -685,6 +796,7 @@ Add or fix a row in fallback\OrderClerkExchanges.csv (column 3 country ISO2 must
                 $payload = Invoke-RestMethod -Method Get -Uri $uri -TimeoutSec $requestTimeoutSeconds
                 $rows = @($payload)
                 $result.totalSymbols = $rows.Count
+                $result.adjustmentsApplied = Invoke-EodhdSymbolAdjustments -Rows $rows -ExchangeCode $exchangeCode -Adjustments $symbolAdjustments -LogFile $logFile
 
                 $result.filteredSymbols = $rows.Count
                 $mappedExchangeCode = Resolve-OrderClerkExchangeCode -ExchangeCode $exchangeCode -AvailableExchanges $availableExchanges -OrderClerkMappingsByCountry $orderClerkMappingsByCountry -LogFile $logFile

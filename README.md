@@ -90,6 +90,7 @@ Here is what each of those elements do:
   - Output is still per exchange (one file per matched exchange).
 - All instrument types returned by EODHD are included in the export (no type filtering).
 - `outputDirectory` and `logsDirectory` can be relative or absolute paths.
+- `symbolAdjustmentsFile` is optional (default: `symbol-adjustments.json` beside the config file). See [Symbol Adjustments](#symbol-adjustments).
 
 Example:
 
@@ -116,6 +117,30 @@ Overrides `exchanges` and instead pulls all exchanges within a particular countr
 ```json
 "countries": ["Germany"]
 ```
+
+## Symbol Adjustments
+
+Known EODHD data errors are corrected on every extraction by `symbol-adjustments.json`. Each entry matches one symbol by exchange and `Code` (case-insensitive) and overwrites the listed fields in the EODHD row before any output file is written, so `*-symbols-full.json`, `*-symbols-rt.txt` and `*-syminfo-rt.csv` all reflect the corrected data.
+
+```json
+{
+  "adjustments": [
+    {
+      "exchange": "XETRA",
+      "code": "GG9B",
+      "set": { "Isin": "GB00B00FHZ82" },
+      "reason": "EODHD reports ISIN DE000A0LP781 for Gold Bullion Securities EUR; the correct ISIN is GB00B00FHZ82."
+    }
+  ]
+}
+```
+
+- `exchange` is the EODHD exchange code being pulled (as in `exchanges`).
+- `set` holds field name to value pairs, using the EODHD field names (`Isin`, `Name`, `Currency`, ...). A field missing from the row is added.
+- `reason` is optional and is written to the run log.
+- Every change is logged with its old and new value, and `last-run.json` records `adjustmentsApplied` per exchange.
+- If an adjustment matches no row (for example the symbol was delisted), the exporter logs and emits a warning so you can remove the stale entry.
+- A malformed entry fails the run. A missing file means no adjustments are applied.
 
 ## Secure Token Configuration (.env)
 
@@ -405,6 +430,7 @@ Sample analysis input:
 
 - `fallback\OrderClerkExchanges.csv` - country (column 3) → exchange acronym mapping for syminfo / listing exchange tokens.
 - `eodhd-config.json` - exchange selection and runtime settings.
+- `symbol-adjustments.json` - per-symbol corrections applied to EODHD data on every extraction.
 - `Eodhd-CandidateSymbolValidation.ps1` - validate candidate universes and compute shared supported history start date.
 - `Invoke-EodhdSymbolExport.ps1` - main exporter.
 - `Invoke-EodhdSymbolValidation.ps1` - validate symbol lists against exported `*-symbols-full.json` payloads.
