@@ -1,12 +1,12 @@
 {
   "adjustments": [
     {
-      "exchange": "XETRA",
-      "code": "GG9B",
+      "exchange": "HE",
+      "code": "UPM",
       "set": {
-        "Isin": "GB00B00FHZ82"
+        "Isin": "FI4000603337"
       },
-      "reason": "EODHD reports ISIN DE000A0LP781 for Gold Bullion Securities EUR; the correct ISIN is GB00B00FHZ82."
+      "reason": "UPM ISIN changed from FI0009005987 to FI4000603337 with the WISA Group partial demerger (registered 2026-10-31, effective 2026-11-02); EODHD still reports the old ISIN. Remove once EODHD reports FI4000603337."
     }
   ]
 }
